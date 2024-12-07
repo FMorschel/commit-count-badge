@@ -1,4 +1,4 @@
-# Generate Commit Badge Action
+# Generate Commit Badge
 
 Generates a Shields.io badge for commit count in a specified repository.
 
@@ -16,7 +16,7 @@ Generates a Shields.io badge for commit count in a specified repository.
 ## Example Usage
 
 ```yaml
-uses: ./.github/actions/create-badge
+uses: FMorschel/generate-commit-badge@v1
 with:
   repository: 'flutter/flutter'
   author: 'FMorschel'
