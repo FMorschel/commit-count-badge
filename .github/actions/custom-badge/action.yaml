@@ -1,0 +1,98 @@
+name: "Generate Commit Badge"
+description: "Generate a Shields.io badge for commit count in a specified repository."
+inputs:
+  repository:
+    description: "The GitHub repository (user/project) to query commits from."
+    required: true
+  author:
+    description: "The author whose commits should be counted."
+    required: true
+  text:
+    description: "The label text for the badge."
+    required: true
+  logo:
+    description: "The logo to include in the badge (optional)."
+    required: false
+    default: "github"
+  labelColor:
+    description: "The background color for the badge label."
+    required: false
+    default: "#0175C2" # Default to blue
+  color:
+    description: "The background color for the badge value."
+    required: false
+    default: "lightgray"
+  outputPath:
+    description: "Path and file name for the generated badge (e.g., 'badges/dart-commits.svg')."
+    required: true
+  token:
+    description: "GitHub token to authenticate API requests."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Count Commits
+      id: count-commits
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+      run: |
+        REPO="${{ inputs.repository }}"
+        AUTHOR="${{ inputs.author }}"
+        API_URL="https://api.github.com/search/commits?q=author:${AUTHOR}+repo:${REPO}"
+        PER_PAGE=100
+        PAGE=1
+        COMMIT_COUNT=0
+        while true; do
+          # Fetch commit count using GitHub's Search API (faster, with pagination)
+          COMMITS_URL="${API_URL}&per_page=${PER_PAGE}&page=${PAGE}"
+          echo "Fetching commits from: $COMMITS_URL"
+          RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.cloak-preview" "${COMMITS_URL}")
+
+          # Get the number of commits from the current page
+          LENGTH=$(echo "$RESPONSE" | jq '.items | length')
+          echo "Commits on page $PAGE: $LENGTH"
+
+          # If no commits are returned, break out of the loop
+          if [ "$LENGTH" -eq 0 ]; then
+            break
+          fi
+
+          # Increment the total commit count
+          COMMIT_COUNT=$((COMMIT_COUNT + LENGTH))
+
+          # Move to the next page
+          PAGE=$((PAGE + 1))
+        done
+
+        echo "commit_count=$COMMIT_COUNT" >> $GITHUB_ENV
+
+    - name: Generate Badge
+      shell: bash
+      run: |
+        COMMIT_COUNT=${{ env.commit_count }}
+        TEXT="${{ inputs.text }}"
+        LOGO="${{ inputs.logo }}"
+        LABEL_COLOR="${{ inputs.labelColor }}"
+        LABEL_COLOR="${LABEL_COLOR//#/%23}"
+        COLOR="${{ inputs.color }}"
+        
+        # URL encode the TEXT by replacing spaces with %20
+        ENCODED_TEXT=$(echo "$TEXT" | sed 's/ /%20/g')
+        
+        BADGE_URL="https://img.shields.io/static/v1?label=${ENCODED_TEXT}&message=${COMMIT_COUNT}&color=${COLOR}&labelColor=${LABEL_COLOR}&style=flat&logo=${LOGO}"
+        echo "BADGE_URL: $BADGE_URL"
+        curl -s "$BADGE_URL" -o badge.svg
+    
+        # Verify the badge.svg was downloaded
+        if [ ! -f badge.svg ]; then
+          echo "Error: badge.svg was not created."
+          exit 3
+        fi
+
+    - name: Save Badge
+      shell: bash
+      run: |
+        mkdir -p $(dirname "${{ inputs.outputPath }}")
+        mv badge.svg "${{ inputs.outputPath }}" || { echo "Error: Failed to move badge.svg"; exit 3; }
