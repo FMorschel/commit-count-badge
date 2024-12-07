@@ -28,6 +28,22 @@ with:
   color: 'lightgray'
 ```
 
+After this you probably want to commit and push badge, something like:
+
+```yaml
+      - name: Commit and Push Badge
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add "badges/dart-commits.svg"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Update commit dart badge"
+          git push
+```
+
 ## Description
 
 This GitHub Action counts the number of commits made by a specified author in a repository and generates a Shields.io badge reflecting this count. The badge is saved to the specified output path within your repository.
